@@ -1,0 +1,199 @@
+// Главный скетч  для нано
+#include <AccelStepper.h>
+
+// Назначение входов/выходов
+// Шаговые двигатели
+
+#define MOTOR1_DIR_PIN  5
+#define MOTOR2_DIR_PIN  6
+#define MOTOR3_DIR_PIN  7 //фокус
+
+#define MOTOR1_STEP_PIN 2
+#define MOTOR2_STEP_PIN 3
+#define MOTOR3_STEP_PIN 4 //фокус
+
+#define MOTOR1_SPR 200  // Кол-во шагов на 1 оборот вала двигателя
+#define MOTOR2_SPR 200  
+#define MOTOR3_SPR 200
+
+#define MOTOR1_MAX_SPEED 1000.0
+#define MOTOR2_MAX_SPEED 1000.0
+#define MOTOR3_MAX_SPEED 1000.0
+
+#define MODE2_MAX_SPEED 100.0
+#define MOTORENABLE_PIN 8 // на все драйверы идёт с одной ноги D8
+// Органы управления и индакация
+
+#define MOTOR1_JOY_IN 0 // Ось Y джойстика вход A0
+#define MOTOR2_JOY_IN 1 // Ось X джойстика вход A1
+#define MOTOR3_JOY_IN 2 // Ось Z джойстика вход A2 для фокуса
+//#define BTN1          0  // Кнопка РЕЖИМ 2 СТАРТ/СТОП
+//#define LED_MODE      1  // Индикатор режима:
+                         // 0=РЕЖИМ 2 (светодиод горит)
+                         // 1=РЕЖИМ 1 (светодиод не горит)
+
+
+int     nMotor1SP, nMotor2SP, nMotor3SP;       // Задание направления от джойстика
+int     nMode2SP;                   // Задание скорости для работы в РЕЖИМ 2
+int     nMotor1MV, nMotor2MV, nMotor3MV;       // Задание скорости после ограничителя
+int     nModeControllerState = 0;   // Текущее состояние конечного автомата ModeController
+int     nMode = 0;                  // Текущий номер режима
+                                    // 0=РЕЖИМ 1. Управление от джойстика
+                                    // 1=РЕЖИМ 2. Движение с заданной скоростью по одной оси
+bool    bBTN1Value;                 // Состояние кнопки BTN1
+
+AccelStepper stpMotor1(AccelStepper::DRIVER, MOTOR1_STEP_PIN, MOTOR1_DIR_PIN);
+AccelStepper stpMotor2(AccelStepper::DRIVER, MOTOR2_STEP_PIN, MOTOR2_DIR_PIN);
+AccelStepper stpMotor3(AccelStepper::DRIVER, MOTOR3_STEP_PIN, MOTOR3_DIR_PIN);
+
+void setup() {                
+    ADCSRA |= (1 << ADPS2);                     //Биту ADPS2 присваиваем единицу - коэффициент деления 16
+  ADCSRA &= ~ ((1 << ADPS1) | (1 << ADPS0)); 
+    phInit();
+}
+
+void loop() {
+  
+ 
+    static int nBTN1Counter;
+    
+    phGetCommand();
+        
+    switch (nModeControllerState) {  // Текущее состояние конечного автомата ModeController
+    
+    case 0:
+        if (bBTN1Value == false) {     // Состояние кнопки BTN1, не нажата
+          nBTN1Counter++;
+        } else {
+          nBTN1Counter = 0;
+        }
+        
+        if ((bBTN1Value == false)) { // Состояние кнопки BTN1 не нажата
+          nModeControllerState = 1;     // Текущее состояние конечного автомата ModeController =1
+          nBTN1Counter = 0;
+        }
+        break;
+    
+   // case 1:
+    //    if (bBTN1Value==true) {    // Состояние кнопки BTN1, кнопка нажата
+    //        nModeControllerState = 2;  // Текущее состояние конечного автомата ModeController =2
+    //        nMode = 1; //Текущий номер режима   выбор режима 1  Движение с заданной скоростью по одной оси
+    //        digitalWrite(LED_MODE, 0);            
+    //    }
+    //    break;
+
+   // case 2:
+   //     if (bBTN1Value == false) {
+   //       nBTN1Counter++;
+   //     } else {
+    //      nBTN1Counter = 0;
+    //    }
+        
+    //    if ((bBTN1Value == false) && (nBTN1Counter > 30)) {
+     //     nModeControllerState = 3;
+     //     nBTN1Counter = 0;
+    //    }
+     //   break;
+    
+   // case 3:
+   //     if (bBTN1Value==true) {
+   //         nModeControllerState = 0;
+   //         nMode = 0; //Текущий номер режима   выбор режима 0  управление от джойстика
+   //         digitalWrite(LED_MODE, 1);
+   //     }
+    //    break;
+        
+    default:
+        break;
+    }
+    
+    switch (nMode) {         //логика выбора , в каком режиме будет работать логика.  если условие режима 0  управление от джойстика
+    case 0:
+      phMotorRunMode1();
+      break;
+   // case 1:           //логика выбора , в каком режиме будет работать логика.  если условие режима 1  Движение с заданной скоростью по одной оси
+   //   phMotorRunMode2();
+   //   break;
+    default:
+      break;
+    }
+}
+
+
+void phInit()
+{
+    pinMode(MOTOR1_DIR_PIN, OUTPUT);
+    pinMode(MOTOR2_DIR_PIN, OUTPUT);
+    pinMode(MOTOR3_DIR_PIN, OUTPUT);
+    pinMode(MOTOR1_STEP_PIN, OUTPUT);
+    pinMode(MOTOR2_STEP_PIN, OUTPUT);
+    pinMode(MOTOR3_STEP_PIN, OUTPUT);
+   // pinMode(BTN1, INPUT_PULLUP);
+   // pinMode(LED_MODE, OUTPUT);
+    pinMode(MOTORENABLE_PIN, OUTPUT);
+    
+    nMotor1MV = 0;
+    nMotor2MV = 0;
+    nMotor3MV = 0;
+    stpMotor1.setMaxSpeed(MOTOR1_MAX_SPEED);
+    stpMotor2.setMaxSpeed(MOTOR2_MAX_SPEED);
+    stpMotor3.setMaxSpeed(MOTOR3_MAX_SPEED);
+    stpMotor1.setAcceleration(1.0);
+    stpMotor2.setAcceleration(1.0);
+    stpMotor3.setAcceleration(1.0);
+    stpMotor1.setSpeed(0);
+    stpMotor2.setSpeed(0);
+    stpMotor3.setSpeed(0);
+   // digitalWrite(LED_MODE, 1);
+    
+    return;
+}
+
+void phGetCommand()
+{
+ //   bBTN1Value = digitalRead(BTN1);
+    
+    nMotor1SP = analogRead(MOTOR1_JOY_IN) - 514; // Ось Y джойстика  присваиваем считанным  аналоговым значениям переменную nMotor1SP
+    nMotor2SP = analogRead(MOTOR2_JOY_IN) - 514; // Ось X джойстика присваиваем считанным  аналоговым значениям переменную nMotor2SP
+    nMotor3SP = analogRead(MOTOR3_JOY_IN) - 514; // Ось Z джойстика присваиваем считанным  аналоговым значениям переменную nMotor3SP
+    nMode2SP = MODE2_MAX_SPEED;                  // Задание скорости для режима 2 движение с заданной скоростью
+    
+    if ((nMotor1SP < -15) || (nMotor1SP > 15)) {    // логика мотора 1      далее если  значение переменной nMotor1SP меньше -15 и больше 15
+        nMotor1MV = map(nMotor1SP, -512, 511, -1*MOTOR1_MAX_SPEED, MOTOR1_MAX_SPEED);  // переносим значения переменной nMotor1SP из считанного диапазона  в переменные MOTOR1_MAX_SPEED
+    } else {
+        nMotor1MV = 0;
+    }
+    nMotor1MV = nMotor1MV * 1;  // Поменять на -1 если требуется реверс
+    
+    if ((nMotor2SP < -15) || (nMotor2SP > 15)) { // логика мотора 2
+        nMotor2MV = map(nMotor2SP, -512, 511, -1*MOTOR2_MAX_SPEED, MOTOR2_MAX_SPEED);        
+    } else {
+        nMotor2MV = 0;
+    }
+    nMotor2MV = nMotor2MV * 1;  // Поменять на -1 если +требуется реверс
+
+    if ((nMotor3SP < -15) || (nMotor3SP > 15)) { // логика мотора 3
+        nMotor3MV = map(nMotor3SP, -512, 511, -1*MOTOR3_MAX_SPEED, MOTOR3_MAX_SPEED);        
+    } else {
+        nMotor3MV = 0;
+    }
+    nMotor3MV = nMotor3MV * 1;  // Поменять на -1 если +требуется реверс
+    
+}
+
+void phMotorRunMode1()
+{
+    stpMotor1.setSpeed(nMotor1MV);  // Задаем скорость для мотора 1  Желаемая постоянная скорость в шагах в секунду
+    stpMotor2.setSpeed(nMotor2MV);  // Задаем скорость для мотора 2  Желаемая постоянная скорость в шагах в секунду
+    stpMotor3.setSpeed(nMotor3MV);  // Задаем скорость для мотора 2  Желаемая постоянная скорость в шагах в секунду
+
+    stpMotor1.runSpeed(); // Выполняем движение с заданной скоростью
+    stpMotor2.runSpeed();
+    stpMotor3.runSpeed();
+}
+
+//void phMotorRunMode2()
+//{
+//    stpMotor1.setSpeed(nMode2SP);   // Задаем скорость для мотора 1  
+ //   stpMotor1.runSpeed(); // Выполняем движение с заданной скоростью
+//}
